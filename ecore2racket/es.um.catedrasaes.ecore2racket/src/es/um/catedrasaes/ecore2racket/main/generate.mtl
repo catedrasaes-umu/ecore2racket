@@ -11,32 +11,91 @@
  */]
 [template public generateRacket(anEPackage : EPackage)]
 [comment @main/]
-[file (anEPackage.name, false, 'UTF-8')]
-#lang racket
+[file (decamel(anEPackage.name)+'.rkt', false, 'UTF-8')]
+#lang racket/base
+
+; (module [decamel(anEPackage.name)/] racket/base
+
+  (require racket/class)
+
+  ;; Support functions
+  (require "../src/ecore-support.rkt")
+
+  [generate_provides(anEPackage)/]
 
 [for (klass : EClass | anEPackage.eClassifiers->filter(EClass))]
 [generate_EClass(klass)/]
 
 [/for]
+
+;; Contracts
+[for (klass : EClass | anEPackage.eClassifiers->filter(EClass))]
+[generate_contract(klass)/]
+
+[/for]
+
+;) ; end module [decamel(anEPackage.name)/]
 [/file]
 [/template]
 
+[template private generate_contract (aEClass : EClass) ]
+[let cname:String = eclass_to_racket_class_name(aEClass)]
+[let iname:String = eclass_to_racket_interface_name(aEClass)]
+(define [eclass_to_racket_interface_name(aEClass)/]/c 
+	(class/c (afield (->m x y))))
+(define/contract [cname/] [iname/]/c [cname/]/b)
+[/let]
+[/let]
+[/template]
+
+[template private generate_provides (anEPackage : EPackage) ]
+(provide
+	[for (klass : EClass | anEPackage.eClassifiers->filter(EClass))]
+		[eclass_to_racket_class_name(klass)/]
+	[/for]
+	)
+[/template]
+
 [template private generate_EClass(klass: EClass)]
+[generate_interface(klass)/]
+[generate_EClass_proper(klass)/]
+[/template]
+
+[template private generate_interface (aEClass : EClass) ]
+(define [eclass_to_racket_interface_name(aEClass)/] )
+[/template]
+
+
+[template private generate_EClass_proper(klass: EClass)]
 [let cname:String = eclass_to_racket_class_name(klass)] 
 ;; Class [klass.name + ' (' + cname + ')'/]
-(define [cname/]
-  (class [superclass_spec(klass)/]
+(define [cname/]/b
+  (class* [superclass_spec(klass)/] (classifier<%> [eclass_to_racket_interface_name(klass)/])
 	[comment See if generating some init method /]
     (super-new)
 
-    ;; slots (features)
-	[generate_slots(klass)/]
+	;; Make it available for introspection (TODO: see a more general method)
+	(inspect #f)
+
+	;; classifier& interface methods
+    (define/override (e-name)
+		"[klass.name/]")
+	(define/override (e-attributes)
+		[attributes_list(klass)/]	
+	)
+	(define/override (e-references)
+		[references_list(klass)/]
+	)
+
+
+    ;; fields (features)
+	[generate_fields(klass)/]
 
   ))
 [/let]
 [/template]
 
-[template private generate_slots(klass : EClass)]
+[template private generate_fields(klass : EClass)]
 [gen_attributes(klass)/]
 [gen_references(klass)/]
 [/template]
@@ -45,10 +104,11 @@
 [for (sf: EAttribute | klass.eStructuralFeatures->filter(EAttribute))]
 [let dec : String = decamel(sf.name)]
 ; attribute [dec/]
-(define [dec/] 0)
-(define/public (get-[dec/]) [dec/])
-(define/public (set-[dec/]! v)
-  (set! [dec/] v))
+(define -[dec/] 0)
+(define/public ([dec/])
+	-[dec/])
+(define/public ([dec/]-set! val)
+	(set! -[dec/] val))
 
 [/let]
 [/for]
@@ -58,10 +118,11 @@
 [for (ref: EReference | klass.eStructuralFeatures->filter(EReference))]
 [let dec : String = decamel(ref.name)]
 ; reference [dec/]
-(define [dec/] null)
-(define/public (get-[dec/]) [dec/])
-(define/public (set-[dec/]! v)
-  (set! [dec/] v))
+(define -[dec/] null)
+(define/public ([dec/])
+	-[dec/])
+(define/public ([dec/]-set! val)
+	(set! -[dec/] val))
 
 [/let]
 [/for]
@@ -72,10 +133,14 @@
 [decamel(klass.name)/]%
 [/template]
 
+[template private eclass_to_racket_interface_name(klass: EClass)]
+[decamel(klass.name)/]<%>
+[/template]
+
 [template private superclass_spec(klass : EClass)]
 [let superclasses : OrderedSet(EClass) = klass.eSuperTypes]
 [if superclasses->size() = 0]
-object%
+eobject%
 [else]
 [eclass_to_racket_class_name(superclasses->first())/]
 [/if]
@@ -84,4 +149,20 @@ object%
 
 [template private decamel(name : EString)]
 [name.replaceAll('([a-z])([A-Z][a-z])', '$1-$2').toLowerCase()/]
+[/template]
+
+[template private attributes_list (klass : EClass) ]
+'( 
+[for (att: EAttribute | klass.eStructuralFeatures->filter(EAttribute))]
+[decamel(att.name)/]
+[/for]
+)
+[/template]
+
+[template private references_list (klass : EClass) ]
+'( 
+[for (ref: EReference | klass.eStructuralFeatures->filter(EReference))]
+[decamel(ref.name)/]
+[/for]
+)
 [/template]
